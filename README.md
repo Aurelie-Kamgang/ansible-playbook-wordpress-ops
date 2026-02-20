@@ -1,7 +1,7 @@
 # ansible-playbook-wordpress-ops
 
 > Repo playbook – Routines opérationnelles d'un WordPress dockerisé.
-> Ce repo est **indépendant du rôle**. Il l'installe via `roles/requirements.yml`.
+> Ce repo est **indépendant du rôle**. Il l'installe via `requirements.yml`.
 
 ---
 
@@ -53,25 +53,96 @@ cd ansible-playbook-wordpress-ops
 
 ### 2. Installer le rôle et les collections
 ```bash
-ansible-galaxy role install -r roles/requirements.yml
+# Installer le rôle dans roles/ (depuis roles/requirements.yml)
+ansible-galaxy install -r roles/requirements.yml -p roles/
+
+# Installer les collections (depuis requirements.yml racine)
 ansible-galaxy collection install -r requirements.yml
 ```
 
-### 3. Configurer le vault (secrets)
-```bash
-# Créer le fichier vault
-cp inventory/group_vars/vault.yml.example inventory/group_vars/vault.yml
+## Gestion des informations sensibles
 
-# Éditer les secrets
+### Vue d'ensemble – où vivent les secrets
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  repo-docker/                                                    │
+│  ├── docker-compose.yml   → ${MYSQL_PASSWORD} (référence)       │
+│  ├── .env.example         → template vide (commité ✅)           │
+│  └── .env                 → valeurs réelles (jamais commité ❌)  │
+│                                      │                           │
+│                                      │ mêmes valeurs             │
+│                                      ▼                           │
+│  repo-playbook/                                                  │
+│  └── inventory/group_vars/                                       │
+│      ├── vault.yml        → chiffré ansible-vault (commité ✅)   │
+│      ├── vault.yml.example→ template vide (commité ✅)           │
+│      └── wordpress_servers.yml → db_password: "{{ vault_* }}"   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Règle fondamentale :** les mots de passe ne doivent apparaître qu'à deux endroits :
+- `.env` (Docker) → sur le serveur, jamais dans git
+- `vault.yml` (Ansible) → dans git **mais chiffré**
+
+### Correspondance des variables
+
+| Fichier `.env` Docker | Fichier `vault.yml` Ansible | Variable du rôle |
+|-----------------------|-----------------------------|------------------|
+| `MYSQL_DATABASE` | `vault_mysql_database` | `db_name` |
+| `MYSQL_USER` | `vault_mysql_user` | `db_user` |
+| `MYSQL_PASSWORD` | `vault_mysql_password` | `db_password` |
+| `MYSQL_ROOT_PASSWORD` | `vault_mysql_root_password` | `db_root_password` |
+
+### Initialisation du vault (première fois)
+
+```bash
+# 1. Copier le template
+cp inventory/group_vars/vault.yml.example \
+   inventory/group_vars/vault.yml
+
+# 2. Remplir avec les MÊMES valeurs que votre .env Docker
 vi inventory/group_vars/vault.yml
 
-# Chiffrer le fichier
+# 3. Chiffrer le fichier
 ansible-vault encrypt inventory/group_vars/vault.yml
+# → Saisir un mot de passe vault fort
 
-# Créer le fichier de mot de passe vault (ne pas commiter)
+# 4. Stocker le mot de passe vault dans un fichier local (non commité)
 echo "votre_mot_de_passe_vault" > .vault_pass
 chmod 600 .vault_pass
 ```
+
+### Commandes vault du quotidien
+
+```bash
+# Voir le contenu déchiffré
+ansible-vault view inventory/group_vars/vault.yml
+
+# Éditer les secrets
+ansible-vault edit inventory/group_vars/vault.yml
+
+# Rechiffrer après modification manuelle
+ansible-vault encrypt inventory/group_vars/vault.yml
+
+# Changer le mot de passe du vault
+ansible-vault rekey inventory/group_vars/vault.yml
+
+# Déchiffrer temporairement (⚠️ à éviter en prod)
+ansible-vault decrypt inventory/group_vars/vault.yml
+```
+
+### Ce qui est commité vs ignoré
+
+| Fichier | Dans git ? | Pourquoi |
+|---------|-----------|---------|
+| `inventory/group_vars/vault.yml` | ✅ oui | chiffré par ansible-vault |
+| `inventory/group_vars/vault.yml.example` | ✅ oui | template de référence |
+| `inventory/group_vars/wordpress_servers.yml` | ✅ oui | pas de secrets (que des `{{ vault_* }}`) |
+| `.vault_pass` | ❌ jamais | mot de passe du vault en clair |
+| `roles/wordpress_ops/` | ❌ ignoré | installé par ansible-galaxy |
+
+
 
 ### 4. Adapter l'inventaire
 ```bash
@@ -342,12 +413,12 @@ ansible wp-prod-01 -m debug -a "var=hostvars[inventory_hostname]" \
 
 ```bash
 # Mettre à jour vers la dernière version du rôle
-ansible-galaxy role install -r requirements.yml --force
+ansible-galaxy install -r roles/requirements.yml -p roles/ --force
 
 # Mettre à jour vers une version spécifique
-# → Modifier requirements.yml : version: v1.2.0
+# → Modifier roles/requirements.yml : version: v1.2.0
 # → Puis :
-ansible-galaxy role install -r requirements.yml --force
+ansible-galaxy install -r roles/requirements.yml -p roles/ --force
 ```
 
 ---
@@ -357,10 +428,13 @@ ansible-galaxy role install -r requirements.yml --force
 ```
 ansible-playbook-wordpress-ops/
 ├── site.yml                              ← Playbook principal
-├── requirements.yml                      ← Référence le rôle wordpress_ops
-├── ansible.cfg                           ← Configuration Ansible
-├── .gitignore
+├── requirements.yml                      ← Collections Ansible (community.docker, amazon.aws)
+├── ansible.cfg                           ← Configuration Ansible (roles_path = roles/)
+├── .gitignore                            ← Exclut roles/* sauf roles/requirements.yml
 ├── .vault_pass                           ← NE PAS COMMITER (dans .gitignore)
+├── roles/
+│   ├── requirements.yml                  ← Déclare le rôle wordpress_ops (Git)
+│   └── wordpress_ops/                    ← Installé par ansible-galaxy (ignoré par git)
 └── inventory/
     ├── hosts.yml                         ← Hosts et groupes (prod, staging)
     └── group_vars/
