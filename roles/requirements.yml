@@ -1,0 +1,5 @@
+roles:
+  - name: wordpress_ops
+    src: https://github.com/votre-org/ansible-role-wordpress-ops.git
+    scm: git
+    version: main
