@@ -1,0 +1,10 @@
+---
+# ============================================================
+# group_vars/all.yml – Variables communes à TOUS les hosts
+# ============================================================
+
+# Timezone du serveur (utilisée dans les noms de fichiers)
+timezone: "Europe/Paris"
+
+# Paramètres SSH communs
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no"

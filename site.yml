@@ -1,0 +1,45 @@
+---
+# ============================================================
+# Playbook principal – Routines opérationnelles WordPress
+# Repo  : ansible-playbook-wordpress-ops
+# Rôle  : wordpress_ops (installé via requirements.yml)
+# ============================================================
+# Installation du rôle avant le premier run :
+#   ansible-galaxy role install -r requirements.yml
+#   ansible-galaxy collection install -r requirements.yml
+#
+# Utilisation :
+#   ansible-playbook site.yml --tags <routine> [options]
+#
+# ┌─────────────────────────────────────────────────────────┐
+# │  ROUTINES DISPONIBLES                                   │
+# ├──────────────────────┬──────────────────────────────────┤
+# │ Tag                  │ Description                      │
+# ├──────────────────────┼──────────────────────────────────┤
+# │ backup_db            │ Backup base de données           │
+# │ backup_files         │ Backup fichiers + DB (handler)   │
+# │ restore_db           │ Restauration base de données     │
+# │ restore_files        │ Restauration fichiers + DB       │
+# │ update_plugins       │ Mise à jour tous les plugins     │
+# │ manage_plugin        │ Activer / désactiver un plugin   │
+# │ cleanup              │ Nettoyage anciens backups        │
+# └──────────────────────┴──────────────────────────────────┘
+# ============================================================
+
+- name: "WordPress Ops | Routines opérationnelles"
+  hosts: wordpress_servers    # groupe défini dans inventory/hosts.yml
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - inventory/group_vars/vault.yml   # secrets chiffrés ansible-vault
+
+  vars:
+    # Référencer les vars du vault proprement
+    db_password: "{{ vault_db_password }}"
+    db_root_password: "{{ vault_db_root_password }}"
+    aws_access_key: "{{ vault_aws_access_key | default('') }}"
+    aws_secret_key: "{{ vault_aws_secret_key | default('') }}"
+
+  roles:
+    - role: wordpress_ops
