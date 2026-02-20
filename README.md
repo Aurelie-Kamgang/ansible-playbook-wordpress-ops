@@ -60,6 +60,38 @@ ansible-galaxy install -r roles/requirements.yml -p roles/
 ansible-galaxy collection install -r requirements.yml
 ```
 
+### 3. Configurer le vault (secrets)
+```bash
+# Créer le fichier vault directement
+cat > inventory/group_vars/vault.yml << 'EOF'
+---
+# Correspondent aux variables MYSQL_* du fichier .env Docker
+vault_mysql_user: "wordpress"
+vault_mysql_password: "wordpress"
+vault_mysql_root_password: "wordpress"
+vault_mysql_database: "wordpress"
+
+# Credentials AWS (laisser vide si IAM Role EC2)
+vault_aws_access_key: ""
+vault_aws_secret_key: ""
+EOF
+
+# Chiffrer le fichier
+ansible-vault encrypt inventory/group_vars/vault.yml
+
+# Stocker le mot de passe vault localement (jamais commité)
+echo "votre_mot_de_passe_vault" > .vault_pass
+chmod 600 .vault_pass
+```
+
+### 4. Adapter l'inventaire
+```bash
+vi inventory/hosts.yml                         # Renseigner les IPs
+vi inventory/group_vars/wordpress_servers.yml  # Adapter s3_bucket, région, etc.
+```
+
+---
+
 ## Gestion des informations sensibles
 
 ### Vue d'ensemble – où vivent les secrets
@@ -76,7 +108,6 @@ ansible-galaxy collection install -r requirements.yml
 │  repo-playbook/                                                  │
 │  └── inventory/group_vars/                                       │
 │      ├── vault.yml        → chiffré ansible-vault (commité ✅)   │
-│      ├── vault.yml.example→ template vide (commité ✅)           │
 │      └── wordpress_servers.yml → db_password: "{{ vault_* }}"   │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -94,36 +125,14 @@ ansible-galaxy collection install -r requirements.yml
 | `MYSQL_PASSWORD` | `vault_mysql_password` | `db_password` |
 | `MYSQL_ROOT_PASSWORD` | `vault_mysql_root_password` | `db_root_password` |
 
-### Initialisation du vault (première fois)
-
-```bash
-# 1. Copier le template
-cp inventory/group_vars/vault.yml.example \
-   inventory/group_vars/vault.yml
-
-# 2. Remplir avec les MÊMES valeurs que votre .env Docker
-vi inventory/group_vars/vault.yml
-
-# 3. Chiffrer le fichier
-ansible-vault encrypt inventory/group_vars/vault.yml
-# → Saisir un mot de passe vault fort
-
-# 4. Stocker le mot de passe vault dans un fichier local (non commité)
-echo "votre_mot_de_passe_vault" > .vault_pass
-chmod 600 .vault_pass
-```
-
 ### Commandes vault du quotidien
 
 ```bash
 # Voir le contenu déchiffré
-ansible-vault view inventory/group_vars/vault.yml
+ansible-vault view inventory/group_vars/vault.yml --vault-password-file .vault_pass
 
 # Éditer les secrets
-ansible-vault edit inventory/group_vars/vault.yml
-
-# Rechiffrer après modification manuelle
-ansible-vault encrypt inventory/group_vars/vault.yml
+ansible-vault edit inventory/group_vars/vault.yml --vault-password-file .vault_pass
 
 # Changer le mot de passe du vault
 ansible-vault rekey inventory/group_vars/vault.yml
@@ -137,27 +146,18 @@ ansible-vault decrypt inventory/group_vars/vault.yml
 | Fichier | Dans git ? | Pourquoi |
 |---------|-----------|---------|
 | `inventory/group_vars/vault.yml` | ✅ oui | chiffré par ansible-vault |
-| `inventory/group_vars/vault.yml.example` | ✅ oui | template de référence |
 | `inventory/group_vars/wordpress_servers.yml` | ✅ oui | pas de secrets (que des `{{ vault_* }}`) |
 | `.vault_pass` | ❌ jamais | mot de passe du vault en clair |
 | `roles/wordpress_ops/` | ❌ ignoré | installé par ansible-galaxy |
-
-
-
-### 4. Adapter l'inventaire
-```bash
-vi inventory/hosts.yml                       # Renseigner les IPs
-vi inventory/group_vars/wordpress_servers.yml  # Adapter s3_bucket, région, etc.
-```
 
 ---
 
 ## Flux S3 – Comment ça marche
 
 ```
-backup_db   ──►  dump MySQL local  ──►  s3://bucket/wordpress/database/db_YYYY-MM-DD_HHMMSS.sql
-backup_files ──► archive tar.gz local ──► s3://bucket/wordpress/files/files_YYYY-MM-DD_HHMMSS.tar.gz
-                 (+ dump DB via handler, uploadé aussi)
+backup_db    ──►  dump MySQL local  ──►  s3://bucket/wordpress/database/db_YYYY-MM-DD_HHMMSS.sql
+backup_files ──►  archive tar.gz local  ──►  s3://bucket/wordpress/files/files_YYYY-MM-DD_HHMMSS.tar.gz
+                  (+ dump DB via handler, uploadé aussi)
 ```
 
 Pour activer l'upload S3 :
@@ -165,7 +165,7 @@ Pour activer l'upload S3 :
 # inventory/group_vars/wordpress_servers.yml
 s3_enabled: true
 s3_bucket: "mon-bucket-wordpress-backup"
-s3_region: "us-east-1"
+s3_region: "eu-east-1"
 ```
 
 ---
@@ -174,7 +174,7 @@ s3_region: "us-east-1"
 
 > **Légende**
 > - `--vault-password-file .vault_pass` : déchiffre les secrets automatiquement
-> - `-l prod` : limite l'exécution au groupe `prod` (ou `staging`, ou un host précis)
+> - `--limit prod` : limite l'exécution au groupe `prod` (ou `staging`, ou un host précis)
 > - `-e "var=val"` : surcharger une variable au runtime
 
 ---
@@ -301,8 +301,9 @@ ansible-playbook site.yml \
 
 ---
 
-# ── Routine 5 : Installation d'un plugin (sans activation) ────
+### 📦 Routine 5 – Installation d'un plugin (sans activation)
 
+```bash
 # Installer la dernière version disponible
 ansible-playbook site.yml \
   --tags install_plugin \
@@ -317,18 +318,20 @@ ansible-playbook site.yml \
   -e "plugin_install_name=woocommerce plugin_install_version=8.5.2" \
   --vault-password-file .vault_pass
 
-# ── Routine 6 : Désinstallation d'un plugin ───────────────────
-
-# Désinstaller un plugin (le désactive automatiquement s'il est actif)
+# Installer sur staging uniquement
 ansible-playbook site.yml \
-  --tags uninstall_plugin \
-  --limit prod \
-  -e "plugin_name=woocommerce" \
+  --tags install_plugin \
+  --limit staging \
+  -e "plugin_install_name=debug-bar plugin_install_version=1.1.7" \
   --vault-password-file .vault_pass
+```
+
+> Le plugin est installé mais **non activé**.
+> Pour l'activer ensuite : `--tags manage_plugin -e "plugin_name=woocommerce plugin_action=activate"`
 
 ---
 
-### 🔧 Routine 7 – Activation / désactivation d'un plugin
+### 🔧 Routine 6 – Activation / désactivation d'un plugin
 
 ```bash
 # Activer un plugin sur prod
@@ -358,9 +361,35 @@ ansible-playbook site.yml \
   -e "plugin_name=debug-bar plugin_action=activate" \
   --vault-password-file .vault_pass
 ```
-# ── Routine 8 : Mise à jour ciblée de plugins ─────────────────
 
-# Avec la liste définie dans group_vars
+---
+
+### 🗑️ Routine 7 – Désinstallation d'un plugin
+
+> Désactive automatiquement le plugin s'il est actif avant de le supprimer.
+
+```bash
+# Désinstaller un plugin sur prod
+ansible-playbook site.yml \
+  --tags uninstall_plugin \
+  --limit prod \
+  -e "plugin_name=woocommerce" \
+  --vault-password-file .vault_pass
+
+# Désinstaller sur staging
+ansible-playbook site.yml \
+  --tags uninstall_plugin \
+  --limit staging \
+  -e "plugin_name=debug-bar" \
+  --vault-password-file .vault_pass
+```
+
+---
+
+### 🔄 Routine 8 – Mise à jour ciblée de plugins (avec version)
+
+```bash
+# Avec la liste définie dans group_vars/wordpress_servers.yml
 ansible-playbook site.yml \
   --tags update_plugins \
   --limit prod \
@@ -372,6 +401,18 @@ ansible-playbook site.yml \
   --limit prod \
   -e '{"plugins_to_update":[{"name":"woocommerce","version":"8.5.2"},{"name":"yoast-seo","version":"22.1"}]}' \
   --vault-password-file .vault_pass
+```
+
+> Pour définir la liste dans `group_vars/wordpress_servers.yml` :
+> ```yaml
+> plugins_to_update:
+>   - name: woocommerce
+>     version: "8.5.2"
+>   - name: yoast-seo
+>     version: "22.1"
+>   - name: contact-form-7
+>     version: "5.9.3"
+> ```
 
 ---
 
@@ -455,6 +496,6 @@ ansible-playbook-wordpress-ops/
     ├── hosts.yml                         ← Hosts et groupes (prod, staging)
     └── group_vars/
         ├── all.yml                       ← Variables communes
-        ├── wordpress_servers.yml         ← Variables du groupe (S3, Docker…)
+        ├── wordpress_servers.yml         ← Variables du groupe (S3, Docker, plugins…)
         └── vault.yml                     ← Secrets chiffrés (ansible-vault)
 ```
