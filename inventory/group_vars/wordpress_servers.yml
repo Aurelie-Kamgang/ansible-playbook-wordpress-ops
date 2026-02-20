@@ -28,7 +28,18 @@ backup_retention_days: 7
 # ── Amazon S3 ───────────────────────────────────────────────
 s3_enabled: true
 s3_bucket: "mon-bucket-wordpress-backup"
-s3_region: "eu-west-1"
+s3_region: "us-east-1"
 s3_prefix: "wordpress"
 aws_access_key: "{{ vault_aws_access_key | default('') }}"
 aws_secret_key: "{{ vault_aws_secret_key | default('') }}"
+
+# ── Mise à jour ciblée des plugins ──────────────────────────
+# Liste des plugins à mettre à jour avec leur version cible
+# Adapter selon vos besoins avant chaque run update_plugins
+plugins_to_update:
+  - name: woocommerce
+    version: "8.5.2"
+  - name: yoast-seo
+    version: "22.1"
+  - name: contact-form-7
+    version: "5.9.3"

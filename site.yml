@@ -37,4 +37,4 @@
     # inventory/group_vars/wordpress_servers.yml
 
   roles:
-    - role: ansible-role-wordpress-ops
+    - role: wordpress-ops

@@ -165,7 +165,7 @@ Pour activer l'upload S3 :
 # inventory/group_vars/wordpress_servers.yml
 s3_enabled: true
 s3_bucket: "mon-bucket-wordpress-backup"
-s3_region: "eu-west-1"
+s3_region: "us-east-1"
 ```
 
 ---
@@ -301,32 +301,34 @@ ansible-playbook site.yml \
 
 ---
 
-### 🔌 Routine 5 – Mise à jour de tous les plugins
+# ── Routine 5 : Installation d'un plugin (sans activation) ────
 
-```bash
-# Mettre à jour tous les plugins sur prod
+# Installer la dernière version disponible
 ansible-playbook site.yml \
-  --tags update_plugins \
+  --tags install_plugin \
   --limit prod \
+  -e "plugin_install_name=woocommerce" \
   --vault-password-file .vault_pass
 
-# Mettre à jour tous les plugins sur staging
+# Installer une version précise
 ansible-playbook site.yml \
-  --tags update_plugins \
-  --limit staging \
-  --vault-password-file .vault_pass
-
-# Dry-run : voir sans appliquer (Ansible check mode)
-ansible-playbook site.yml \
-  --tags update_plugins \
+  --tags install_plugin \
   --limit prod \
-  --check \
+  -e "plugin_install_name=woocommerce plugin_install_version=8.5.2" \
   --vault-password-file .vault_pass
-```
+
+# ── Routine 6 : Désinstallation d'un plugin ───────────────────
+
+# Désinstaller un plugin (le désactive automatiquement s'il est actif)
+ansible-playbook site.yml \
+  --tags uninstall_plugin \
+  --limit prod \
+  -e "plugin_name=woocommerce" \
+  --vault-password-file .vault_pass
 
 ---
 
-### 🔧 Routine 6 – Activation / désactivation d'un plugin
+### 🔧 Routine 7 – Activation / désactivation d'un plugin
 
 ```bash
 # Activer un plugin sur prod
@@ -356,10 +358,24 @@ ansible-playbook site.yml \
   -e "plugin_name=debug-bar plugin_action=activate" \
   --vault-password-file .vault_pass
 ```
+# ── Routine 8 : Mise à jour ciblée de plugins ─────────────────
+
+# Avec la liste définie dans group_vars
+ansible-playbook site.yml \
+  --tags update_plugins \
+  --limit prod \
+  --vault-password-file .vault_pass
+
+# Avec la liste passée directement en CLI (sans toucher group_vars)
+ansible-playbook site.yml \
+  --tags update_plugins \
+  --limit prod \
+  -e '{"plugins_to_update":[{"name":"woocommerce","version":"8.5.2"},{"name":"yoast-seo","version":"22.1"}]}' \
+  --vault-password-file .vault_pass
 
 ---
 
-### 🧹 Routine 7 – Nettoyage des anciens backups
+### 🧹 Routine 9 – Nettoyage des anciens backups
 
 ```bash
 # Nettoyer les backups > 7 jours (valeur par défaut)
