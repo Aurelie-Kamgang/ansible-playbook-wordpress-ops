@@ -1,7 +1,7 @@
 # ansible-playbook-wordpress-ops
 
 > Repo playbook – Routines opérationnelles d'un WordPress dockerisé.
-> Ce repo est **indépendant du rôle**. Il l'installe via `requirements.yml`.
+> Ce repo est **indépendant du rôle**. Il l'installe via `roles/requirements.yml`.
 
 ---
 
@@ -53,7 +53,7 @@ cd ansible-playbook-wordpress-ops
 
 ### 2. Installer le rôle et les collections
 ```bash
-ansible-galaxy role install -r requirements.yml
+ansible-galaxy role install -r roles/requirements.yml
 ansible-galaxy collection install -r requirements.yml
 ```
 
