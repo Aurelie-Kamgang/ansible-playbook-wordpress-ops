@@ -3,6 +3,11 @@
 # group_vars/wordpress_servers.yml
 # Variables communes à tous les serveurs WordPress
 # ============================================================
+# Convention de nommage :
+#   vault_*  → valeur brute chiffrée dans vault.yml
+#   Les variables du rôle (db_user, db_password…) récupèrent
+#   leur valeur depuis le vault via les alias ci-dessous.
+# ============================================================
 
 # ── Docker ──────────────────────────────────────────────────
 wordpress_container: "wordpress"
@@ -10,9 +15,11 @@ mysql_container: "db"
 wordpress_root: "/var/www/html"
 
 # ── Base de données ─────────────────────────────────────────
-db_name: "wordpress"
-db_user: "wordpress"
-# db_password et db_root_password → dans vault.yml (chiffré)
+# Ces variables correspondent aux MYSQL_* du .env Docker
+db_name: "{{ vault_mysql_database }}"
+db_user: "{{ vault_mysql_user }}"
+db_password: "{{ vault_mysql_password }}"
+db_root_password: "{{ vault_mysql_root_password }}"
 
 # ── Backup local ────────────────────────────────────────────
 backup_base_dir: "/opt/backups/wordpress"
@@ -23,5 +30,5 @@ s3_enabled: true
 s3_bucket: "mon-bucket-wordpress-backup"
 s3_region: "eu-west-1"
 s3_prefix: "wordpress"
-# aws_access_key / aws_secret_key → dans vault.yml
-# Recommandé : utiliser un IAM role EC2 (pas de clé en clair)
+aws_access_key: "{{ vault_aws_access_key | default('') }}"
+aws_secret_key: "{{ vault_aws_secret_key | default('') }}"

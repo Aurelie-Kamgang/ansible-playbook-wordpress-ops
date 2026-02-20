@@ -33,13 +33,8 @@
 
   vars_files:
     - inventory/group_vars/vault.yml   # secrets chiffrés ansible-vault
-
-  vars:
-    # Référencer les vars du vault proprement
-    db_password: "{{ vault_db_password }}"
-    db_root_password: "{{ vault_db_root_password }}"
-    aws_access_key: "{{ vault_aws_access_key | default('') }}"
-    aws_secret_key: "{{ vault_aws_secret_key | default('') }}"
+    # Les variables vault_* sont mappées vers db_*, aws_* dans :
+    # inventory/group_vars/wordpress_servers.yml
 
   roles:
-    - role: wordpress_ops
+    - role: ansible-role-wordpress-ops
