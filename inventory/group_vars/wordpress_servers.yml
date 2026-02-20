@@ -10,8 +10,8 @@
 # ============================================================
 
 # ── Docker ──────────────────────────────────────────────────
-wordpress_container: "wordpress"
-mysql_container: "db"
+wordpress_container: "eazy-givewp-wordpress-1"
+mysql_container: "eazy-givewp-db-1"
 wordpress_root: "/var/www/html"
 
 # ── Base de données ─────────────────────────────────────────
