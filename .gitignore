@@ -1,6 +1,5 @@
 *.retry
 *.log
-roles/
 .vault_pass
 inventory/group_vars/vault.yml
 __pycache__/
