@@ -3,15 +3,9 @@
 # requirements.yml – Dépendances du repo playbook
 # ============================================================
 # Installation :
-#   ansible-galaxy role install -r requirements.yml
+#   ansible-galaxy role install -r roles/requirements.yml
 #   ansible-galaxy collection install -r requirements.yml
 # ============================================================
-
-roles:
-  - name: wordpress_ops
-    src: https://github.com/votre-org/ansible-role-wordpress-ops.git
-    scm: git
-    version: main   # ou un tag : v1.0.0
 
 collections:
   - name: community.docker
